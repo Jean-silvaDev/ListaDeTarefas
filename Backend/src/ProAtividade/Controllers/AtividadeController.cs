@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Server.IIS.Core;
 using ProAtividade.Model;
+using ProAtividade.Repository;
 
 namespace ProAtividade.Controllers
 {
@@ -11,37 +13,65 @@ namespace ProAtividade.Controllers
     [Route("api/[controller]")]
     public class AtividadeController : ControllerBase
     {
-        public IEnumerable<Atividade> Atividades = new List<Atividade> {
-            new Atividade(1),
-            new Atividade(2),
-            new Atividade(3)
-        };
-
+        private readonly DataContext _dataContext;
+        public AtividadeController(DataContext dataContext)
+        {
+            _dataContext = dataContext;
+        }
         [HttpGet]
         public IEnumerable<Atividade> Get()
         {
-            return this.Atividades;
+            return _dataContext.Atividades;
         }
         [HttpGet("{id}")]
         public Atividade Get(int id)
         {
-            return this.Atividades.FirstOrDefault(atividade => atividade.Id == id);
+            return _dataContext.Atividades.FirstOrDefault(atividade => atividade.Id == id);
         }
         [HttpPost]
         public IEnumerable<Atividade> Post(Atividade atividade)
         {
-            return this.Atividades.Append<Atividade>(atividade);
+            _dataContext.Atividades.Add(atividade);
+
+            if (_dataContext.SaveChanges() > 0)
+                return _dataContext.Atividades;
+            throw new Exception("Erro ao incluir atividade!");
         }
 
         [HttpPut("{id}")]
-        public string Put(int id, Atividade atividade)
+        public void Put(int id, Atividade atividade)
         {
-            return $"Meu primerio PUT com id = {id}!\nAtividade: {atividade.Titulo}";
+            var atividadeExistente = _dataContext.Atividades.FirstOrDefault(atv => atv.Id == id);
+
+            if (atividadeExistente is not null)
+            {
+                _dataContext.Entry(atividadeExistente).State = Microsoft.EntityFrameworkCore.EntityState.Detached; // Desanexa a antiga
+
+                _dataContext.Update(atividade);
+
+                if (_dataContext.SaveChanges() > 0)
+                {
+                    return;
+                }
+            }
+
+            throw new Exception("Atividade não encontrada!");
         }
+
         [HttpDelete("{id}")]
-        public string Delete(int id)
+        public void Delete(int id)
         {
-            return $"Meu primerio DELETE com id = {id}!";
+            Atividade atividade = _dataContext.Atividades.FirstOrDefault(atividade => atividade.Id == id);
+            if (atividade is not null)
+            {
+                _dataContext.Remove(atividade);
+                if (_dataContext.SaveChanges() > 0)
+                {
+                    return;
+                }
+            }
+
+            throw new Exception("Atividade não encontrada!");
         }
     }
 }
